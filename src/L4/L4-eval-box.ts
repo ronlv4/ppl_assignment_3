@@ -2,7 +2,8 @@
 // L4 with mutation (set!) and env-box model
 // Direct evaluation of letrec with mutation, define supports mutual recursion.
 
-import { map, repeat, zipWith } from "ramda";
+import * as R from 'ramda'
+import {map, pipe, repeat, set, zipWith} from "ramda";
 import {
     isBoolExp,
     isCExp,
@@ -43,7 +44,7 @@ import {
 import { isClosure, makeClosure, Closure, Value, valueToString, TracedClosure, isTracedClosure, makeTracedClosure } from "./L4-value-box";
 import { applyPrimitive } from "./evalPrimitive-box";
 import { first, rest, isEmpty, cons } from "../shared/list";
-import {Result, bind, mapv, mapResult, makeFailure, makeOk, safe2} from "../shared/result";
+import {Result, bind, mapv, mapResult, makeFailure, makeOk, safe2, isOk, isOkT} from "../shared/result";
 import { parse as p } from "../shared/parser";
 
 // ========================================================
@@ -65,7 +66,7 @@ const applicativeEval = (exp: CExp, env: Env): Result<Value> => {
     isAppExp(exp) ? bind(applicativeEval(exp.rator, env), (proc: Value) =>
                         bind(mapResult((rand: CExp) => applicativeEval(rand, env), exp.rands), (args: Value[]) =>
                             applyProcedure(proc, args))) :
-    isTraceExp(exp) ? evalTraceExp(exp) : // HW3
+    isTraceExp(exp) ? evalTraceExp(exp, env) : // HW3
     exp;
 
 }
@@ -75,9 +76,13 @@ export const isTrueValue = (x: Value): boolean =>
 
 
 // HW3
-//list-len
-const evalTraceExp = (exp: TraceExp): Result<void> => makeOk(void exp)
-    // complete this
+const evalTraceExp = (exp: TraceExp,env: Env): Result<void> =>{
+    const fBindingResult = applyEnvBdg(env,exp.var.var);
+    const valueResult = applyEnv(env,exp.var.var);
+    if (isOkT(isClosure)(valueResult) && isOk(fBindingResult))
+        return makeOk(setFBinding(fBindingResult.value, makeTracedClosure(valueResult.value, exp.var.var)))
+    return makeFailure("trace id invalid");
+}
 
 // HW3 use these functions
 const printPreTrace = (name: string, vals: Value[], counter: number): void =>
@@ -108,16 +113,13 @@ const applyClosure = (proc: Closure, args: Value[]): Result<Value> => {
     return evalSequence(proc.body, makeExtEnv(vars, args, proc.env));
 }
 
-const applyTracedClosure = (proc: TracedClosure, args: Value[]): Result<Value> =>{
-    printPreTrace(proc.name, args, 2);
-    makeOk(args[0])
-
+const applyTracedClosure = (proc: TracedClosure, args: Value[]): Result<Value> => {
+    printPreTrace(proc.name,args,proc.count++);
+    const valueResult = applyClosure(proc.closure, args)
+    isOk(valueResult) ? printPostTrace(valueResult.value,--proc.count):
+        makeFailure("unable to apply closure");
+    return valueResult;
 }
-// console.log(`>${" >".repeat(counter)} (${name} ${map(valueToString, vals)})`)
-
-    // complete this
-
-
 
 // Evaluate a sequence of expressions (in a program)
 export const evalSequence = (seq: Exp[], env: Env): Result<Value> => {

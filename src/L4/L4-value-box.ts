@@ -47,11 +47,12 @@ export interface SymbolSExp {
 export interface TracedClosure {
     tag: "TracedClosure",
     closure: Closure,
-    name: string
+    name: string,
     // add missing fields
+    count: number
 }
 export const makeTracedClosure = (closure: Closure, name: string): TracedClosure =>
-    ({tag: "TracedClosure", closure: closure, name: name})
+    ({tag: "TracedClosure", closure: closure, name: name, count: 0})
     // complete this
     
 export const isTracedClosure = (x: any): x is TracedClosure => x.tag === "TracedClosure";
